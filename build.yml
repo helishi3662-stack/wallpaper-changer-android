@@ -5,47 +5,65 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  # 允许旧版 Node.js action 运行，避免兼容性问题
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # 使用稳定版本，避免最新版兼容问题
+
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v5.4.0
       with:
         python-version: '3.10'
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip \
-          autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
-          libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+        sudo apt-get install -y \
+          git zip unzip openjdk-17-jdk python3-pip \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo5 \
+          cmake libffi-dev libssl-dev
         pip install buildozer cython
 
-    - name: Cache SDK
-      uses: actions/cache@v4
+    - name: Cache Android SDK
+      uses: actions/cache@v4.2.0
       with:
-        path: ~/.buildozer
+        path: |
+          ~/.buildozer
+          ~/.gradle
         key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
-        restore-keys: ${{ runner.os }}-buildozer-
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
 
     - name: Build APK
-      run: buildozer android debug
+      run: |
+        buildozer android debug
 
     - name: Upload APK
-      uses: actions/upload-artifact@v4
+      if: always()
+      uses: actions/upload-artifact@v4.6.0
       with:
         name: wallpaper-changer-apk
         path: bin/*.apk
 
     - name: Create Release
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v2.2.1
       with:
         tag_name: v${{ github.run_number }}
         name: 壁纸切换器 v${{ github.run_number }}
+        body: |
+          自动构建的 APK 文件
+          - 支持随机/顺序/乱序播放
+          - 预缓存5张图片
+          - 每2小时自动扫描新图片
         files: bin/*.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
