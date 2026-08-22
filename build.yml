@@ -5,6 +5,59 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git zip unzip openjdk-17-jdk python3-pip \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo5 \
+          cmake libffi-dev libssl-dev
+        pip install buildozer cython
+
+    - name: Build APK
+      run: |
+        buildozer android debug 2>&1 | tee build.log
+      timeout-minutes: 60
+
+    - name: Check build result
+      if: always()
+      run: |
+        echo "=== 检查 bin 目录 ==="
+        ls -la bin/ 2>/dev/null || echo "bin 目录不存在"
+        echo "=== 检查其他可能的 APK 路径 ==="
+        find . -name "*.apk" 2>/dev/null || echo "未找到 APK"
+        echo "=== 日志尾部 100 行 ==="
+        tail -n 100 build.log || echo "无日志文件"
+
+    - name: Upload APK and logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: wallpaper-changer-apk
+        path: |
+          bin/*.apk
+          build.log
+        if-no-files-found: warnname: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
 env:
   # 允许旧版 Node.js action 运行，避免兼容性问题
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
